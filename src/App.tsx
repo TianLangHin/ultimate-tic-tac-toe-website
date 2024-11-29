@@ -84,16 +84,10 @@ export default function Board() {
   }
 
   useEffect(() => {
-    setAnalysis("Loading analysis...")
-    alphaBetaRootCall(boardValue, player, maxDepth)
-      .then(x => {
-        setAnalysis(`Eval: ${ evalString(x.evaluation) }, PV: ${
-          x.pv.map(m => moveString(m)).filter(m => m !== "").join(", ")
-        }`)
-      })
-      .catch(_ => {
-        setAnalysis("Failed to load AI")
-      })
+    let { evaluation, pv } = alphaBetaRootCall(boardValue, player, maxDepth)
+    setAnalysis(`Eval: ${ evalString(evaluation) }, PV: ${
+      pv.map(m => moveString(m)).filter(m => m !== "").join(", ")
+    }`)
   }, [boardValue])
 
   return (

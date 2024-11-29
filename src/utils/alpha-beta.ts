@@ -312,10 +312,10 @@ function alphaBeta(
   return { evaluation: alpha, pv: pv }
 }
 
-export async function alphaBetaRootCall(
+export function alphaBetaRootCall(
   board: Board,
   side: boolean,
-  depth: number): Promise<EvalAndPV> {
+  depth: number): EvalAndPV {
 
   return alphaBeta(board, side, depth, OUTCOME_LOSS, OUTCOME_WIN, depth)
 }
