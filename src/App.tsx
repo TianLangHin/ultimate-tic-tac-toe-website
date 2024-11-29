@@ -1,8 +1,16 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import './App.css'
 import { Occupancy, GameStatus } from './utils/data-types.ts'
 import { calculateGameStatus } from './utils/calculate-game-status.ts'
 import { Zone } from './components/zone.tsx'
+import {
+  alphaBetaRootCall,
+  newBoard,
+  playMove,
+  OUTCOME_WIN,
+  OUTCOME_DRAW,
+  OUTCOME_LOSS
+} from './utils/alpha-beta.ts'
 
 const zoneStrings: string[] = [
   "NW", "N", "NE", "W", "C", "E", "SW", "S", "SE"
@@ -14,12 +22,33 @@ export default function Board() {
   const [status, setStatus] = useState(GameStatus.Free)
   const [grid, setGrid] = useState(Array(9).fill(GameStatus.Free))
   const [history, setHistory] = useState<number[]>([])
+  const [boardValue, setBoardValue] = useState(newBoard())
+  const [analysis, setAnalysis] = useState("Loading analysis...")
+
+  const maxDepth = 6
 
   const playable = (index: number) => playableZone === index || playableZone === null
 
   const zoneString = (zone: number | null) => {
     return zone === null ? "ANY" : zoneStrings[zone]
   }
+
+  const moveString = (move: bigint | number) => {
+    if (Number(move) < 0 || Number(move) > 80)
+      return ""
+
+    let bigZone = zoneStrings[Math.floor(Number(move) / 9)]
+    let smallZone = zoneStrings[Number(move) % 9]
+
+    return `${bigZone}/${smallZone}`
+  }
+
+  const evalString = (evaluation: number) => (
+    evaluation <= OUTCOME_LOSS + maxDepth ? `L${evaluation - OUTCOME_LOSS}` :
+    evaluation >= OUTCOME_WIN - maxDepth ? `W${OUTCOME_WIN - evaluation}` :
+    evaluation == OUTCOME_DRAW ? "D0" :
+    evaluation > 0 ? `+${evaluation}` : `${evaluation}`
+  )
 
   const callback = (zoneIndex: number) => {
     return (index: number, newStatus: GameStatus) => {
@@ -41,15 +70,31 @@ export default function Board() {
         newGrid.some(gameStatus => gameStatus === GameStatus.Free) ? GameStatus.Free :
         GameStatus.Draw
 
+      const move = zoneIndex * 9 + index
+
       setPlayer(player => !player)
       setPlayableZone(
         (index === zoneIndex ? newStatus : grid[index]) === GameStatus.Free ? index : null
       )
       setStatus(newGameStatus)
       setGrid(newGrid)
-      setHistory([...history, zoneIndex * 9 + index])
+      setHistory([...history, move])
+      setBoardValue(playMove(boardValue, BigInt(move), player))
     }
   }
+
+  useEffect(() => {
+    setAnalysis("Loading analysis...")
+    alphaBetaRootCall(boardValue, player, maxDepth)
+      .then(x => {
+        setAnalysis(`Eval: ${ evalString(x.evaluation) }, PV: ${
+          x.pv.map(m => moveString(m)).filter(m => m !== "").join(", ")
+        }`)
+      })
+      .catch(_ => {
+        setAnalysis("Failed to load AI")
+      })
+  }, [boardValue])
 
   return (
     <>
@@ -67,6 +112,9 @@ export default function Board() {
         }
       </p>
       <p>{ `Playable Zone: ${zoneString(playableZone)}` }</p>
+      <p>
+      { `${analysis}` }
+      </p>
       <div className="flex items-center justify-center">
         <div className="grid grid-rows-3 gap-2">
           <div className="grid grid-cols-3 gap-2">
@@ -153,16 +201,12 @@ export default function Board() {
         <h3 className="font-bold text-xl">Move List</h3>
         <ul>
         {
-          history.map(move => {
-            const bigZone = zoneStrings[Math.floor(move / 9)]
-            const smallZone = zoneStrings[move % 9]
-
-            return (
+          history.map(move => (
               <li className="odd:text-blue-600 even:text-green-600">
-                <p>{ `${bigZone}/${smallZone}` }</p>
+                <p>{ `${ moveString(move) }` }</p>
               </li>
             )
-          })
+          )
         }
         </ul>
       </div>
