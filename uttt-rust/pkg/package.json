@@ -1,0 +1,20 @@
+{
+  "name": "uttt-rust",
+  "type": "module",
+  "collaborators": [
+    "TianLangHin <tianlanghin@gmail.com>"
+  ],
+  "version": "0.1.0",
+  "files": [
+    "uttt_rust_bg.wasm",
+    "uttt_rust.js",
+    "uttt_rust_bg.js",
+    "uttt_rust.d.ts"
+  ],
+  "main": "uttt_rust.js",
+  "types": "uttt_rust.d.ts",
+  "sideEffects": [
+    "./uttt_rust.js",
+    "./snippets/*"
+  ]
+}
