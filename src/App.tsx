@@ -4,19 +4,35 @@ import { Occupancy, GameStatus } from './utils/data-types.ts'
 import { calculateGameStatus } from './utils/calculate-game-status.ts'
 import { Zone } from './components/zone.tsx'
 import {
-  alphaBetaRootCall,
+  // alphaBetaRootCall,
+  // Board,
   newBoard,
   playMove,
-  OUTCOME_WIN,
-  OUTCOME_DRAW,
-  OUTCOME_LOSS
+  // OUTCOME_WIN,
+  // OUTCOME_DRAW,
+  // OUTCOME_LOSS
 } from './utils/alpha-beta.ts'
+import { go, serialise_board } from '../uttt-rust/pkg'
 
 const zoneStrings: string[] = [
   "NW", "N", "NE", "W", "C", "E", "SW", "S", "SE"
 ]
 
-export default function Board() {
+function zoneString(zone: number | null): string {
+  return zone === null ? "ANY" : zoneStrings[zone]
+}
+
+function moveString(move: bigint | number): string {
+  if (Number(move) < 0 || Number(move) > 80)
+    return ""
+
+  let bigZone = zoneStrings[Math.floor(Number(move) / 9)]
+  let smallZone = zoneStrings[Number(move) % 9]
+
+  return `${bigZone}/${smallZone}`
+}
+
+export default function App() {
   const [player, setPlayer] = useState(true)
   const [playableZone, setPlayableZone] = useState<number | null>(null)
   const [status, setStatus] = useState(GameStatus.Free)
@@ -25,30 +41,9 @@ export default function Board() {
   const [boardValue, setBoardValue] = useState(newBoard())
   const [analysis, setAnalysis] = useState("Loading analysis...")
 
-  const maxDepth = 6
+  const maxDepth = 8
 
   const playable = (index: number) => playableZone === index || playableZone === null
-
-  const zoneString = (zone: number | null) => {
-    return zone === null ? "ANY" : zoneStrings[zone]
-  }
-
-  const moveString = (move: bigint | number) => {
-    if (Number(move) < 0 || Number(move) > 80)
-      return ""
-
-    let bigZone = zoneStrings[Math.floor(Number(move) / 9)]
-    let smallZone = zoneStrings[Number(move) % 9]
-
-    return `${bigZone}/${smallZone}`
-  }
-
-  const evalString = (evaluation: number) => (
-    evaluation <= OUTCOME_LOSS + maxDepth ? `L${evaluation - OUTCOME_LOSS}` :
-    evaluation >= OUTCOME_WIN - maxDepth ? `W${OUTCOME_WIN - evaluation}` :
-    evaluation == OUTCOME_DRAW ? "D0" :
-    evaluation > 0 ? `+${evaluation}` : `${evaluation}`
-  )
 
   const callback = (zoneIndex: number) => {
     return (index: number, newStatus: GameStatus) => {
@@ -84,10 +79,28 @@ export default function Board() {
   }
 
   useEffect(() => {
-    let { evaluation, pv } = alphaBetaRootCall(boardValue, player, maxDepth)
-    setAnalysis(`Eval: ${ evalString(evaluation) }, PV: ${
-      pv.map(m => moveString(m)).filter(m => m !== "").join(", ")
-    }`)
+    let response = go(
+      `${maxDepth}`,
+      serialise_board(`${boardValue.us} ${boardValue.them} ${boardValue.share}`),
+      player)
+    if (response[0] === "error") {
+      if (response[1] === "depth") {
+        if (response[2] === "invalid") {
+          setAnalysis("Non-positive depth is set.")
+        } else if (response[2] === "overflow") {
+          setAnalysis(`Depth was set higher than maximum of ${response[3]}`)
+        }
+      } else if (response[1] === "board") {
+        setAnalysis("Board serialisation failed")
+      }
+    } else if (response[0] === "info") {
+      if (response[1] === "depth") {
+        let dpt = Number(response[2])
+        let pv = response.slice(4, 4 + dpt)
+        let evaluation = response[4 + dpt + 1]
+        setAnalysis(`Eval: ${ evaluation }, PV: ${ pv.map(x => x.toUpperCase()).join(", ") }`)
+      }
+    }
   }, [boardValue])
 
   return (
